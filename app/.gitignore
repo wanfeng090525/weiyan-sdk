@@ -1,0 +1,11 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# 签名文件（私钥不提交，CI 用临时 keystore 或 secret 提供）
+*.keystore
+
+# IDE
+.idea/
+*.iml

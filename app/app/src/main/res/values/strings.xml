@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">微验测试</string>
+
+    <!-- 登录页 -->
+    <string name="login_title">微验 网络验证</string>
+    <string name="login_subtitle">请输入卡密开始使用</string>
+    <string name="login_kami_hint">请输入卡密</string>
+    <string name="login_btn">登 录</string>
+    <string name="login_machine_label">本机设备码</string>
+    <string name="login_copy">复制</string>
+    <string name="login_more">更多功能</string>
+
+    <!-- 主页面 -->
+    <string name="main_title">我的</string>
+    <string name="main_section_account">账号信息</string>
+    <string name="main_section_func">功能</string>
+    <string name="main_section_other">其他</string>
+    <string name="main_kami">卡密</string>
+    <string name="main_machine">设备码</string>
+    <string name="main_expire">到期时间</string>
+    <string name="main_notice">公告</string>
+    <string name="main_check_update">检查更新</string>
+    <string name="main_logout">退出登录</string>
+    <string name="main_version">版本</string>
+
+    <!-- 通用 -->
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+</resources>

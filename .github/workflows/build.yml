@@ -1,10 +1,14 @@
-name: 构建微验 WY SDK arm64-v8a .so
+name: 构建微验 WY SDK arm64-v8a .so + 测试APK
 
+# 触发方式:
+# 1. 手动: Actions 页面 -> Run workflow
+# 2. 推送 tag: git tag v1.1.0 && git push origin v1.1.0
 on:
   workflow_dispatch:
   push:
     paths:
       - 'android/**'
+      - 'app/**'
       - '.github/workflows/**'
     tags:
       - 'v*'
@@ -14,7 +18,7 @@ permissions:
 
 jobs:
   build-weiyan:
-    name: 构建 arm64-v8a
+    name: 构建 .so + APK
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
@@ -27,6 +31,7 @@ jobs:
           ndk-version: r27
           link-to-sdk: true
 
+      # ============ 1. 构建 .so (arm64-v8a) ============
       - name: 构建 .so (arm64-v8a)
         run: |
           export ANDROID_NDK_HOME=${{ steps.ndk.outputs.ndk-path }}
@@ -38,7 +43,7 @@ jobs:
             NDK_APPLICATION_MK=jni/Application.mk
           find libs -name "*.so" -ls
 
-      - name: 校验产物
+      - name: 校验 .so 产物
         run: |
           SO=$(find "${GITHUB_WORKSPACE}/android/libs" -name "*.so" | head -1)
           test -n "$SO" && test -s "$SO" || { echo "!!! .so 构建失败或为空 !!!"; exit 1; }
@@ -48,11 +53,69 @@ jobs:
           cp "$SO" "${GITHUB_WORKSPACE}/libwyverify-arm64-v8a.so"
           ls -lh "${GITHUB_WORKSPACE}/libwyverify-arm64-v8a.so"
 
+      # ============ 2. 构建测试 APK ============
+      - name: APK - 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: APK - 安装 Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.5"
+
+      - name: APK - 安装 Android SDK 组件
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" "build-tools;36.0.0" > /dev/null || true
+
+      - name: APK - 同步 libwyverify.so 到 jniLibs
+        run: |
+          rm -rf "${GITHUB_WORKSPACE}/app/app/src/main/jniLibs"
+          mkdir -p "${GITHUB_WORKSPACE}/app/app/src/main/jniLibs"
+          cp -r "${GITHUB_WORKSPACE}/android/libs/." \
+                "${GITHUB_WORKSPACE}/app/app/src/main/jniLibs/"
+          find "${GITHUB_WORKSPACE}/app/app/src/main/jniLibs" -name "*.so" -ls
+
+      - name: APK - 准备签名
+        run: |
+          if [ -n "${{ secrets.MYAPP_KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.MYAPP_KEYSTORE_B64 }}" | base64 -d > "${GITHUB_WORKSPACE}/app/myapp.keystore"
+            echo "MYAPP_KEYSTORE_FILE=${GITHUB_WORKSPACE}/app/myapp.keystore" >> "$GITHUB_ENV"
+            echo "MYAPP_KEYSTORE_PASS=${{ secrets.MYAPP_KEYSTORE_PASS }}" >> "$GITHUB_ENV"
+            echo "使用仓库 secret 签名"
+          else
+            keytool -genkeypair -v -keystore "${GITHUB_WORKSPACE}/app/myapp.keystore" \
+              -alias myapp -keyalg RSA -keysize 2048 -validity 10950 \
+              -storepass wysdk2026 -keypass wysdk2026 \
+              -dname "CN=MyApp, OU=Dev, O=MyApp, L=Beijing, S=Beijing, C=CN" > /dev/null 2>&1
+            echo "使用临时 keystore 签名"
+          fi
+
+      - name: APK - 构建 release APK
+        run: |
+          cd "${GITHUB_WORKSPACE}/app"
+          gradle assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk \
+             "${GITHUB_WORKSPACE}/app/My_WYTest_APK_v1.0.apk"
+          ls -lh "${GITHUB_WORKSPACE}/app/My_WYTest_APK_v1.0.apk"
+
+      - name: 校验构建产物
+        run: |
+          echo "=== 构建产物清单 ==="
+          ls -lh "${GITHUB_WORKSPACE}/libwyverify-arm64-v8a.so"
+          ls -lh "${GITHUB_WORKSPACE}/app/My_WYTest_APK_v1.0.apk"
+
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: wyverify-arm64-v8a
-          path: libwyverify-arm64-v8a.so
+          name: wyverify-arm64-v8a-and-apk
+          path: |
+            libwyverify-arm64-v8a.so
+            app/My_WYTest_APK_v1.0.apk
 
       - name: 附加到 Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -64,4 +127,5 @@ jobs:
             --generate-notes || true
           gh release upload "${GITHUB_REF_NAME}" \
             libwyverify-arm64-v8a.so \
+            app/My_WYTest_APK_v1.0.apk \
             --clobber

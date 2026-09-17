@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.myapp'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.example.myapp"
+        minSdk 21
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            // 本地默认 myapp.keystore；CI 通过环境变量提供（MYAPP_KEYSTORE_B64 解码后落盘 app/myapp.keystore）
+            def ksPath = System.getenv("MYAPP_KEYSTORE_FILE") ?: '../myapp.keystore'
+            def ksPass = System.getenv("MYAPP_KEYSTORE_PASS") ?: 'wysdk2026'
+            storeFile file(ksPath)
+            storePassword ksPass
+            keyAlias 'myapp'
+            keyPassword ksPass
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
+}
