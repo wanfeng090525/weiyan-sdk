@@ -116,6 +116,7 @@ Java_com_weiyan_sdk_WYVerify_nativeLogin(
     set_bool(env, obj, R_LOGIN, "success", r.success);
     set_str (env, obj, R_LOGIN, "msg", r.msg);
     set_str (env, obj, R_LOGIN, "type", r.type);
+    set_str (env, obj, R_LOGIN, "kmtype", r.kmtype);
     set_long(env, obj, R_LOGIN, "code", r.code);
     set_long(env, obj, R_LOGIN, "remain", r.remain);
     set_long(env, obj, R_LOGIN, "endTime", r.endTime);

@@ -43,7 +43,8 @@ struct WYVersionResult {
 struct WYLoginResult {
     bool success = false;
     std::string msg;          /* 失败消息 */
-    std::string type;         /* single / timing */
+    std::string type;         /* ktype：code=单码 / single=次数卡 */
+    std::string kmtype;       /* kmtype：free/hour/day/week/month/season/year/longuse/single */
     long code = 0;            /* 服务器 code（11242 成功） */
     long remain = 0;          /* single 类型：剩余可登录次数 */
     long endTime = 0;         /* timing 类型：到期时间戳 */

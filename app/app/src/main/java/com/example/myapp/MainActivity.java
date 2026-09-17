@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private String kami = "";
     private String markcode = "";
     private String type = "";
+    private String kmtype = "";
     private long remain;
     private long endTime;
     private String token = "";
@@ -73,6 +74,7 @@ public class MainActivity extends Activity {
         kami = sp.getString(LoginActivity.KEY_KAMI, "");
         markcode = sp.getString(LoginActivity.KEY_MARKCODE, "");
         type = sp.getString(LoginActivity.KEY_TYPE, "");
+        kmtype = sp.getString(LoginActivity.KEY_KM_TYPE, "");
         remain = sp.getLong(LoginActivity.KEY_REMAIN, 0);
         endTime = sp.getLong(LoginActivity.KEY_END_TIME, 0);
         token = sp.getString(LoginActivity.KEY_TOKEN, "");
@@ -149,7 +151,26 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
+    /* 卡密时长类型(kmtype) → 中文名，参照官方文档《卡密时长类型》 */
+    private String kmtypeName() {
+        if (TextUtils.isEmpty(kmtype)) return null;
+        switch (kmtype) {
+            case "free":    return "免费卡";
+            case "hour":    return "时卡";
+            case "day":     return "天卡";
+            case "week":    return "周卡";
+            case "month":   return "月卡";
+            case "season":  return "季卡";
+            case "year":    return "年卡";
+            case "longuse": return "永久卡";
+            case "single":  return "次数卡";
+            default:        return null;
+        }
+    }
+
     private String cardTypeText() {
+        String n = kmtypeName();
+        if (n != null) return n;
         if ("single".equals(type)) return "次数卡";
         if ("code".equals(type)) return "单码";
         if ("timing".equals(type)) return "时长卡";

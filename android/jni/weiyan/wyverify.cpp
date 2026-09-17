@@ -26,6 +26,24 @@ static std::string wy_json_to_str(const wy_json &v) {
     return "";
 }
 
+/* 从登录响应 msg 中提取卡密时长类型(kmtype)：
+ * 键名后台可自定义，按官方文档《卡密时长类型》的标识集合做启发式扫描 */
+static std::string wy_extract_kmtype(const wy_json &msg, const std::string &ktype_key) {
+    if (!msg.is_object()) return "";
+    static const char *kKmTypes[] = {
+        "free", "hour", "day", "week", "month", "season", "year", "longuse", "single"
+    };
+    for (auto it = msg.begin(); it != msg.end(); ++it) {
+        if (!it.value().is_string()) continue;
+        std::string v = it.value().get<std::string>();
+        if (it.key() == ktype_key) continue;   /* 跳过卡密类型 ktype */
+        for (const char *k : kKmTypes) {
+            if (v == k) return v;
+        }
+    }
+    return "";
+}
+
 /* 从登录响应 msg 中提取 token：
  * 键名后台可自定义，先按配置键名取，失败则跳过 ktype/校验值做启发式扫描 */
 static std::string wy_extract_token(const wy_json &msg) {
@@ -157,6 +175,7 @@ WYLoginResult WYVerify::login(const std::string &kami, const std::string &markco
         }
 
         r.type = data.value("u1686821dd22b8b848108aa079f8dab50", "");
+        r.kmtype = wy_extract_kmtype(data, "u1686821dd22b8b848108aa079f8dab50");
         if (r.type == "single") {
             r.remain = data.value("c27f13333b755643373328a41fc2c2be1", (long)0);
         } else {

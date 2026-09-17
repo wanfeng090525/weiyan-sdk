@@ -2,8 +2,10 @@ package com.weiyan.sdk;
 
 /** 单码登录结果 */
 public class WYLoginResult extends WYResult {
-    /** single=次数卡 / timing=时长卡 */
+    /** ktype：code=单码 / single=次数卡 */
     public String type = "";
+    /** kmtype 卡密时长类型：free/hour/day/week/month/season/year/longuse/single */
+    public String kmtype = "";
     /** 服务器返回 code（11242 成功） */
     public long code;
     /** single 类型：剩余可登录次数 */
