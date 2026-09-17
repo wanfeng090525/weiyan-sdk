@@ -151,6 +151,7 @@ public class MainActivity extends Activity {
 
     private String cardTypeText() {
         if ("single".equals(type)) return "次数卡";
+        if ("code".equals(type)) return "单码";
         if ("timing".equals(type)) return "时长卡";
         return TextUtils.isEmpty(type) ? "—" : type;
     }

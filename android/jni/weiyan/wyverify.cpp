@@ -16,6 +16,16 @@ std::string WYVerify::post(const std::string &id, const std::string &params) {
     return wy_httppost(WY_HOST, WY_PATH, wy_encode_request(full));
 }
 
+/* JSON 值转字符串：后台部分字段可能返回数字（如 type/onlinenum），
+ * 用 nlohmann 的 value("", "") 会抛 type_error，这里统一兼容 */
+static std::string wy_json_to_str(const wy_json &v) {
+    if (v.is_string()) return v.get<std::string>();
+    if (v.is_number_integer()) return std::to_string(v.get<long long>());
+    if (v.is_number_unsigned()) return std::to_string(v.get<unsigned long long>());
+    if (v.is_number_float()) return std::to_string(v.get<double>());
+    return "";
+}
+
 /* 从登录响应 msg 中提取 token：
  * 键名后台可自定义，先按配置键名取，失败则跳过 ktype/校验值做启发式扫描 */
 static std::string wy_extract_token(const wy_json &msg) {
@@ -248,10 +258,11 @@ WYHeartbeatResult WYVerify::heartbeat(const std::string &kami, const std::string
             if (j.contains("msg") && j["msg"].is_object()) {
                 const wy_json &m = j["msg"];
                 r.endTime   = m.value("endtime", (long)0);
-                r.type      = m.value("type", "");
-                r.timetype  = m.value("timetype", "");
-                r.onlinenum = m.value("onlinenum", "");
-                r.check     = m.value("check", "");
+                /* 后台可能以数字返回这些字段，用兼容助手读取 */
+                if (m.contains("type"))      r.type      = wy_json_to_str(m["type"]);
+                if (m.contains("timetype"))  r.timetype  = wy_json_to_str(m["timetype"]);
+                if (m.contains("onlinenum")) r.onlinenum = wy_json_to_str(m["onlinenum"]);
+                if (m.contains("check"))     r.check     = wy_json_to_str(m["check"]);
             }
             r.success = true;
             r.msg = "心跳成功";
