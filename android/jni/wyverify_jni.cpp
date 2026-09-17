@@ -56,6 +56,8 @@ static void set_str(JNIEnv *env, jobject obj, const char *cls, const char *f, co
 #define R_NOTICE        "com/weiyan/sdk/WYNoticeResult"
 #define R_VERSION       "com/weiyan/sdk/WYVersionResult"
 #define R_LOGIN         "com/weiyan/sdk/WYLoginResult"
+#define R_UNBIND        "com/weiyan/sdk/WYUnbindResult"
+#define R_HEARTBEAT     "com/weiyan/sdk/WYHeartbeatResult"
 
 /* ========== 生命周期 ========== */
 
@@ -117,5 +119,42 @@ Java_com_weiyan_sdk_WYVerify_nativeLogin(
     set_long(env, obj, R_LOGIN, "code", r.code);
     set_long(env, obj, R_LOGIN, "remain", r.remain);
     set_long(env, obj, R_LOGIN, "endTime", r.endTime);
+    set_str (env, obj, R_LOGIN, "token", r.token);
+    return obj;
+}
+
+/* ========== 单码解绑 ========== */
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_weiyan_sdk_WYVerify_nativeUnbind(
+        JNIEnv *env, jobject thiz, jlong handle, jstring kami, jstring markcode) {
+    WYVerify *v = reinterpret_cast<WYVerify *>(handle);
+    jobject obj = new_obj(env, R_UNBIND);
+    if (!v || !obj) return obj;
+    auto r = v->unbind(jstr(env, kami), jstr(env, markcode));
+    set_bool(env, obj, R_UNBIND, "success", r.success);
+    set_str (env, obj, R_UNBIND, "msg", r.msg);
+    set_long(env, obj, R_UNBIND, "code", r.code);
+    set_long(env, obj, R_UNBIND, "remain", r.remain);
+    return obj;
+}
+
+/* ========== 心跳验证 ========== */
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_weiyan_sdk_WYVerify_nativeHeartbeat(
+        JNIEnv *env, jobject thiz, jlong handle, jstring kami, jstring markcode, jstring kamitoken) {
+    WYVerify *v = reinterpret_cast<WYVerify *>(handle);
+    jobject obj = new_obj(env, R_HEARTBEAT);
+    if (!v || !obj) return obj;
+    auto r = v->heartbeat(jstr(env, kami), jstr(env, markcode), jstr(env, kamitoken));
+    set_bool(env, obj, R_HEARTBEAT, "success", r.success);
+    set_str (env, obj, R_HEARTBEAT, "msg", r.msg);
+    set_long(env, obj, R_HEARTBEAT, "code", r.code);
+    set_long(env, obj, R_HEARTBEAT, "endTime", r.endTime);
+    set_str (env, obj, R_HEARTBEAT, "type", r.type);
+    set_str (env, obj, R_HEARTBEAT, "timetype", r.timetype);
+    set_str (env, obj, R_HEARTBEAT, "onlinenum", r.onlinenum);
+    set_str (env, obj, R_HEARTBEAT, "check", r.check);
     return obj;
 }

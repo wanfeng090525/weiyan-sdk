@@ -8,6 +8,8 @@ package com.weiyan.sdk;
  *   WYNoticeResult  notice = v.getNotice();
  *   WYVersionResult ver    = v.checkUpdate("1.0");
  *   WYLoginResult   login  = v.login(kami, markcode);   // markcode 为设备码
+ *   WYUnbindResult  unbind = v.unbind(kami, markcode);  // 解绑后登录态失效
+ *   WYHeartbeatResult hb   = v.heartbeat(kami, markcode, login.token);
  *   v.destroy();
  *
  * 说明: 所有凭证/密钥都编译在 libwyverify.so 内，本类不含任何密钥。
@@ -39,6 +41,16 @@ public class WYVerify {
         return nativeLogin(handle, kami, markcode);
     }
 
+    /** 单码解绑，markcode 为设备码 */
+    public WYUnbindResult unbind(String kami, String markcode) {
+        return nativeUnbind(handle, kami, markcode);
+    }
+
+    /** 心跳验证，kamitoken 为登录返回的 msg.token */
+    public WYHeartbeatResult heartbeat(String kami, String markcode, String kamitoken) {
+        return nativeHeartbeat(handle, kami, markcode, kamitoken);
+    }
+
     /** 释放底层资源 */
     public void destroy() {
         if (handle != 0) {
@@ -53,4 +65,6 @@ public class WYVerify {
     private static native WYNoticeResult nativeGetNotice(long handle);
     private static native WYVersionResult nativeCheckUpdate(long handle, String currentVersion);
     private static native WYLoginResult nativeLogin(long handle, String kami, String markcode);
+    private static native WYUnbindResult nativeUnbind(long handle, String kami, String markcode);
+    private static native WYHeartbeatResult nativeHeartbeat(long handle, String kami, String markcode, String kamitoken);
 }

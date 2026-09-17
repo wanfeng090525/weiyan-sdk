@@ -34,6 +34,24 @@ int main() {
     cout << "type: " << lg.type << endl;
     cout << "remain: " << lg.remain << endl;
     cout << "endTime: " << lg.endTime << endl;
+    cout << "token: " << lg.token << endl;
+
+    cout << "\n========== 4. 单码解绑(无效卡密测试解密) ==========" << endl;
+    auto ub = v.unbind("test-kami-000", "test-device-000");
+    cout << "success: " << ub.success << endl;
+    cout << "msg: " << ub.msg << endl;
+    cout << "code: " << ub.code << endl;
+    cout << "remain: " << ub.remain << endl;
+
+    cout << "\n========== 5. 心跳验证(无效token测试解密) ==========" << endl;
+    auto hb = v.heartbeat("test-kami-000", "test-device-000", "test-token-000");
+    cout << "success: " << hb.success << endl;
+    cout << "msg: " << hb.msg << endl;
+    cout << "code: " << hb.code << endl;
+    cout << "endTime: " << hb.endTime << endl;
+    cout << "type: " << hb.type << endl;
+    cout << "timetype: " << hb.timetype << endl;
+    cout << "onlinenum: " << hb.onlinenum << endl;
 
     return 0;
 }

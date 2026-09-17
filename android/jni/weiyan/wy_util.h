@@ -43,10 +43,16 @@
 #define WY_REQ_CUSTOM_B64    "fOrYsXDLKjTzilcw6bn321paIxNBetV95MvohAQq+UZRmu/gCyEH0k874SJFWGdP"
 #define WY_REQ_RC4_KEY2      "c5f939f2cfd9fd7c21aec26b60390"      // 请求第二层 RC4 密钥
 
-/* 公告/更新/登录 接口 id（请求参数固定值） */
+/* 公告/更新/登录/解绑/心跳 接口 id（请求参数固定值） */
 #define WY_ID_NOTICE         "ms0mYguHG2G"
 #define WY_ID_UPDATE         "9PcyLozlM4Y"
 #define WY_ID_LOGIN          "4ooszUNauTB"
+#define WY_ID_UNBIND         "4210AA536BA"
+#define WY_ID_HEARTBEAT      "F482D033AE0"
+
+/* 登录响应 msg 中 token 的键名（后台可自定义，默认 "token"；
+ * 若取不到会走启发式扫描兜底） */
+#define WY_KEY_TOKEN         "token"
 
 /* ============================================================
  * 基础工具

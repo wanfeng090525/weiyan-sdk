@@ -10,4 +10,6 @@ public class WYLoginResult extends WYResult {
     public long remain;
     /** timing 类型：到期时间戳(秒) */
     public long endTime;
+    /** 登录令牌 msg.token（心跳验证用） */
+    public String token = "";
 }

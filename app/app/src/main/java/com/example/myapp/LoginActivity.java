@@ -40,6 +40,7 @@ public class LoginActivity extends Activity {
     public static final String KEY_TYPE = "type";
     public static final String KEY_REMAIN = "remain";
     public static final String KEY_END_TIME = "end_time";
+    public static final String KEY_TOKEN = "token";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -139,6 +140,7 @@ public class LoginActivity extends Activity {
                 .remove(KEY_TYPE)
                 .remove(KEY_REMAIN)
                 .remove(KEY_END_TIME)
+                .remove(KEY_TOKEN)
                 .apply();
     }
 
@@ -221,6 +223,7 @@ public class LoginActivity extends Activity {
                 .putString(KEY_TYPE, r.type)
                 .putLong(KEY_REMAIN, r.remain)
                 .putLong(KEY_END_TIME, r.endTime)
+                .putString(KEY_TOKEN, r.token == null ? "" : r.token)
                 .apply();
     }
 

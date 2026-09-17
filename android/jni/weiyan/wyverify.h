@@ -47,6 +47,25 @@ struct WYLoginResult {
     long code = 0;            /* 服务器 code（11242 成功） */
     long remain = 0;          /* single 类型：剩余可登录次数 */
     long endTime = 0;         /* timing 类型：到期时间戳 */
+    std::string token;        /* 登录令牌（心跳用） */
+};
+
+struct WYUnbindResult {
+    bool success = false;
+    std::string msg;          /* 失败消息 */
+    long code = 0;            /* 服务器 code（200 成功） */
+    long remain = 0;          /* 剩余可解绑次数 msg.num */
+};
+
+struct WYHeartbeatResult {
+    bool success = false;
+    std::string msg;          /* 失败消息 */
+    long code = 0;            /* 服务器 code（200 成功） */
+    long endTime = 0;         /* msg.endtime 到期时间 */
+    std::string type;         /* msg.type 卡密类型 */
+    std::string timetype;     /* msg.timetype 时长类型 */
+    std::string onlinenum;    /* msg.onlinenum 在线人数 */
+    std::string check;        /* msg.check 校验值 */
 };
 
 /* ========== 核心类 ========== */
@@ -63,6 +82,13 @@ public:
 
     /* 单码登录，markcode 为设备码 */
     WYLoginResult login(const std::string &kami, const std::string &markcode);
+
+    /* 单码解绑，markcode 为设备码 */
+    WYUnbindResult unbind(const std::string &kami, const std::string &markcode);
+
+    /* 心跳验证，kamitoken 为登录返回的 msg.token */
+    WYHeartbeatResult heartbeat(const std::string &kami, const std::string &markcode,
+                                const std::string &kamitoken);
 
 private:
     /* 发送微验请求并返回原始响应体 */

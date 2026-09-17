@@ -17,7 +17,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.weiyan.sdk.WYHeartbeatResult;
 import com.weiyan.sdk.WYNoticeResult;
+import com.weiyan.sdk.WYUnbindResult;
 import com.weiyan.sdk.WYVerify;
 import com.weiyan.sdk.WYVersionResult;
 
@@ -43,6 +45,7 @@ public class MainActivity extends Activity {
     private String type = "";
     private long remain;
     private long endTime;
+    private String token = "";
     private String appVer = "1.0";
     private boolean destroyed = false;
 
@@ -56,6 +59,7 @@ public class MainActivity extends Activity {
         type = sp.getString(LoginActivity.KEY_TYPE, "");
         remain = sp.getLong(LoginActivity.KEY_REMAIN, 0);
         endTime = sp.getLong(LoginActivity.KEY_END_TIME, 0);
+        token = sp.getString(LoginActivity.KEY_TOKEN, "");
 
         if (TextUtils.isEmpty(kami)) {
             backToLogin();
@@ -95,6 +99,7 @@ public class MainActivity extends Activity {
         } else {
             addInfoCell(accountGroup, "到期时间", endTime > 0 ? fmtTime(endTime) : "—");
         }
+        addInfoCell(accountGroup, "登录令牌", token);
         root.addView(groupContainer(accountGroup));
 
         // 分组二：功能
@@ -102,6 +107,8 @@ public class MainActivity extends Activity {
         LinearLayout funcGroup = group();
         addActionCell(funcGroup, "公告", true, v -> loadNotice());
         addActionCell(funcGroup, "检查更新", true, v -> checkUpdate());
+        addActionCell(funcGroup, "心跳验证", true, v -> doHeartbeat());
+        addActionCell(funcGroup, "解绑卡密", true, v -> confirmUnbind());
         root.addView(groupContainer(funcGroup));
 
         // 分组三：其他
@@ -322,6 +329,53 @@ public class MainActivity extends Activity {
                     }
                 } else {
                     toast(r != null && !TextUtils.isEmpty(r.msg) ? r.msg : "版本查询失败");
+                }
+            });
+        });
+    }
+
+    private void confirmUnbind() {
+        AlertDialog.Builder b = new AlertDialog.Builder(this);
+        b.setTitle("解绑卡密");
+        b.setMessage("解绑后当前设备将失去登录状态，卡密可在新设备重新使用。\n确定要解绑吗？");
+        b.setNegativeButton("取消", null);
+        b.setPositiveButton("解绑", (d, w) -> doUnbind());
+        b.show();
+    }
+
+    private void doUnbind() {
+        executor.execute(() -> {
+            WYUnbindResult r = wy.unbind(kami, markcode);
+            mainHandler.post(() -> {
+                if (destroyed) return;
+                if (r != null && r.success) {
+                    showDialog("解绑成功", "剩余可解绑次数：" + r.remain);
+                } else {
+                    toast(r != null && !TextUtils.isEmpty(r.msg) ? r.msg : "解绑失败");
+                }
+            });
+        });
+    }
+
+    private void doHeartbeat() {
+        if (TextUtils.isEmpty(token)) {
+            toast("未获取到登录令牌(需重新登录)");
+            return;
+        }
+        executor.execute(() -> {
+            WYHeartbeatResult r = wy.heartbeat(kami, markcode, token);
+            mainHandler.post(() -> {
+                if (destroyed) return;
+                if (r != null && r.success) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("心跳成功(code=").append(r.code).append(")\n");
+                    if (r.endTime > 0) sb.append("到期时间：").append(fmtTime(r.endTime)).append("\n");
+                    if (!TextUtils.isEmpty(r.type)) sb.append("卡密类型：").append(r.type).append("\n");
+                    if (!TextUtils.isEmpty(r.timetype)) sb.append("时长类型：").append(r.timetype).append("\n");
+                    if (!TextUtils.isEmpty(r.onlinenum)) sb.append("在线人数：").append(r.onlinenum);
+                    showDialog("心跳验证", sb.toString());
+                } else {
+                    toast(r != null && !TextUtils.isEmpty(r.msg) ? r.msg : "心跳失败");
                 }
             });
         });
