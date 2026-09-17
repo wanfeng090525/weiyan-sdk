@@ -1,0 +1,15 @@
+# 构建产物
+android/libs/
+android/obj/
+*.so
+
+# 本地测试产物
+test/wy_test
+test/diag
+test/wy_proto
+test/*_resp.txt
+test/login*.txt
+test/upd_resp.txt
+
+# Java 编译产物
+*.class
