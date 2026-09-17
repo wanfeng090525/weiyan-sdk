@@ -39,6 +39,21 @@ public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    /* 心跳间隔：官方文档建议 10-60 秒请求一次，Token 默认 120 秒过期 */
+    private static final long HEARTBEAT_INTERVAL_MS = 30_000L;
+    /* 状态码：105=数据过期(令牌过期) */
+    private static final int CODE_DATA_EXPIRED = 105;
+
+    private final Handler hbHandler = new Handler(Looper.getMainLooper());
+    private final Runnable hbTask = new Runnable() {
+        @Override
+        public void run() {
+            doHeartbeat();
+            if (hbRunning) hbHandler.postDelayed(this, HEARTBEAT_INTERVAL_MS);
+        }
+    };
+    private boolean hbRunning = false;
+
     private WYVerify wy;
     private String kami = "";
     private String markcode = "";
@@ -48,6 +63,7 @@ public class MainActivity extends Activity {
     private String token = "";
     private String appVer = "1.0";
     private boolean destroyed = false;
+    private TextView hbStatusView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,6 +116,7 @@ public class MainActivity extends Activity {
             addInfoCell(accountGroup, "到期时间", endTime > 0 ? fmtTime(endTime) : "—");
         }
         addInfoCell(accountGroup, "登录令牌", token);
+        hbStatusView = addInfoCell(accountGroup, "心跳状态", "未开始");
         root.addView(groupContainer(accountGroup));
 
         // 分组二：功能
@@ -107,7 +124,6 @@ public class MainActivity extends Activity {
         LinearLayout funcGroup = group();
         addActionCell(funcGroup, "公告", true, v -> loadNotice());
         addActionCell(funcGroup, "检查更新", true, v -> checkUpdate());
-        addActionCell(funcGroup, "心跳验证", true, v -> doHeartbeat());
         addActionCell(funcGroup, "解绑卡密", true, v -> confirmUnbind());
         root.addView(groupContainer(funcGroup));
 
@@ -221,7 +237,7 @@ public class MainActivity extends Activity {
         return wrap;
     }
 
-    private void addInfoCell(LinearLayout group, String title, String value) {
+    private TextView addInfoCell(LinearLayout group, String title, String value) {
         LinearLayout cell = new LinearLayout(this);
         cell.setOrientation(LinearLayout.HORIZONTAL);
         cell.setGravity(Gravity.CENTER_VERTICAL);
@@ -247,6 +263,7 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         group.addView(cell);
         group.addView(divider());
+        return v;
     }
 
     private void addActionCell(LinearLayout group, String title, boolean arrow,
@@ -357,9 +374,11 @@ public class MainActivity extends Activity {
         });
     }
 
+    /* 自动心跳：每 30 秒一次，结果直接刷新到主页"心跳状态"行 */
     private void doHeartbeat() {
+        if (destroyed) return;
         if (TextUtils.isEmpty(token)) {
-            toast("未获取到登录令牌(需重新登录)");
+            updateHbStatus("未登录(无令牌)");
             return;
         }
         executor.execute(() -> {
@@ -367,18 +386,38 @@ public class MainActivity extends Activity {
             mainHandler.post(() -> {
                 if (destroyed) return;
                 if (r != null && r.success) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("心跳成功(code=").append(r.code).append(")\n");
-                    if (r.endTime > 0) sb.append("到期时间：").append(fmtTime(r.endTime)).append("\n");
-                    if (!TextUtils.isEmpty(r.type)) sb.append("卡密类型：").append(r.type).append("\n");
-                    if (!TextUtils.isEmpty(r.timetype)) sb.append("时长类型：").append(r.timetype).append("\n");
-                    if (!TextUtils.isEmpty(r.onlinenum)) sb.append("在线人数：").append(r.onlinenum);
-                    showDialog("心跳验证", sb.toString());
+                    StringBuilder sb = new StringBuilder("正常 · ");
+                    sb.append(r.endTime > 0 ? fmtTime(r.endTime) : "无到期时间");
+                    if (!TextUtils.isEmpty(r.onlinenum)) sb.append(" · 在线").append(r.onlinenum).append("人");
+                    updateHbStatus(sb.toString());
+                } else if (r != null && r.code == CODE_DATA_EXPIRED) {
+                    /* Token 默认 120 秒过期，过期后需重新登录获取新令牌 */
+                    updateHbStatus("令牌过期，请退出重新登录");
                 } else {
-                    toast(r != null && !TextUtils.isEmpty(r.msg) ? r.msg : "心跳失败");
+                    updateHbStatus(r != null && !TextUtils.isEmpty(r.msg) ? r.msg : "心跳失败");
                 }
             });
         });
+    }
+
+    private void updateHbStatus(String s) {
+        if (hbStatusView != null) hbStatusView.setText(TextUtils.isEmpty(s) ? "—" : s);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!hbRunning) {
+            hbRunning = true;
+            hbHandler.postDelayed(hbTask, 2_000L); /* 进入页面先等 2 秒再开始心跳 */
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        hbRunning = false;
+        hbHandler.removeCallbacks(hbTask);
     }
 
     private void confirmLogout() {
