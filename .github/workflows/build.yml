@@ -32,6 +32,13 @@ jobs:
           link-to-sdk: true
 
       # ============ 1. 构建 .so (arm64-v8a) ============
+      # 每次构建前先用密钥 wanfeng 生成加密常量头（Android.mk 也会兜底执行一次），
+      # 链接/调用码/协议密钥以 RC4 密文编译进 .so，IV 每次构建随机，产物各不相同
+      - name: 加密常量（生成加固头文件）
+        run: |
+          python3 "${GITHUB_WORKSPACE}/android/tools/gen_wy_constants.py"
+          head -8 "${GITHUB_WORKSPACE}/android/jni/weiyan/wy_constants_enc.h"
+
       - name: 构建 .so (arm64-v8a)
         run: |
           export ANDROID_NDK_HOME=${{ steps.ndk.outputs.ndk-path }}

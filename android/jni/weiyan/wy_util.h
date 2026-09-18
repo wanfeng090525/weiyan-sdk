@@ -67,49 +67,6 @@ static std::string wy_hex2bin(const std::string &hex) {
 }
 
 /* ============================================================
- * 加密常量（构建时由 gen_wy_constants.py 生成）
- * 授权密钥 "wanfeng" 以混淆形式存储，运行时机内还原后解密各常量。
- * ============================================================ */
-#include "wy_constants_enc.h"
-
-/* 还原授权密钥（wanfeng） */
-static std::string wy_auth_key() {
-    static std::string k;
-    if (k.empty()) {
-        std::string bin = wy_hex2bin(WY_AUTH_KEY_HEX);
-        for (size_t i = 0; i < bin.size(); i++) bin[i] ^= (char)WY_AUTH_KEY_XOR_BYTE;
-        k = bin;
-    }
-    return k;
-}
-
-/* 解密单个加密常量：hex -> 字节 -> XOR 授权密钥 */
-static std::string wy_dec_const(const char *hex) {
-    const std::string &key = wy_auth_key();
-    std::string bin = wy_hex2bin(hex);
-    for (size_t i = 0; i < bin.size(); i++) bin[i] ^= key[i % key.size()];
-    return bin;
-}
-
-/* 常量 getter（一次性解密并缓存，C++11 起静态局部初始化线程安全） */
-static const std::string &wy_c_host()           { static std::string s = wy_dec_const(WY_ENC_HOST);           return s; }
-static const std::string &wy_c_path()           { static std::string s = wy_dec_const(WY_ENC_PATH);           return s; }
-static const std::string &wy_c_sign_key()       { static std::string s = wy_dec_const(WY_ENC_SIGN_KEY);       return s; }
-static const std::string &wy_c_check_text()     { static std::string s = wy_dec_const(WY_ENC_CHECK_TEXT);     return s; }
-static const std::string &wy_c_notice_xor_key() { static std::string s = wy_dec_const(WY_ENC_NOTICE_XOR_KEY); return s; }
-static const std::string &wy_c_login_rc4_key1() { static std::string s = wy_dec_const(WY_ENC_LOGIN_RC4_KEY1); return s; }
-static const std::string &wy_c_login_rc4_key2() { static std::string s = wy_dec_const(WY_ENC_LOGIN_RC4_KEY2); return s; }
-static const std::string &wy_c_req_rc4_key1()   { static std::string s = wy_dec_const(WY_ENC_REQ_RC4_KEY1);   return s; }
-static const std::string &wy_c_req_custom_b64() { static std::string s = wy_dec_const(WY_ENC_REQ_CUSTOM_B64); return s; }
-static const std::string &wy_c_req_rc4_key2()   { static std::string s = wy_dec_const(WY_ENC_REQ_RC4_KEY2);   return s; }
-static const std::string &wy_c_id_notice()      { static std::string s = wy_dec_const(WY_ENC_ID_NOTICE);      return s; }
-static const std::string &wy_c_id_update()      { static std::string s = wy_dec_const(WY_ENC_ID_UPDATE);      return s; }
-static const std::string &wy_c_id_login()       { static std::string s = wy_dec_const(WY_ENC_ID_LOGIN);       return s; }
-static const std::string &wy_c_id_unbind()      { static std::string s = wy_dec_const(WY_ENC_ID_UNBIND);      return s; }
-static const std::string &wy_c_id_heartbeat()   { static std::string s = wy_dec_const(WY_ENC_ID_HEARTBEAT);   return s; }
-static const std::string &wy_c_key_token()      { static std::string s = wy_dec_const(WY_ENC_KEY_TOKEN);      return s; }
-
-/* ============================================================
  * MD5
  * ============================================================ */
 typedef struct {
@@ -330,6 +287,60 @@ static std::string wy_sha1(const std::string &message) {
 }
 
 /* ============================================================
+ * SHA-256（返回 32 字节二进制；用于授权密钥校验与解密密钥派生）
+ * ============================================================ */
+static std::string wy_sha256(const std::string &message) {
+    static const uint32_t K[64] = {
+        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+    };
+    std::vector<uint8_t> padded(message.begin(), message.end());
+    padded.push_back(0x80);
+    while ((padded.size() % 64) != 56) padded.push_back(0x00);
+    uint64_t bitlen = (uint64_t)message.length() * 8;
+    for (int i = 7; i >= 0; i--) padded.push_back((uint8_t)((bitlen >> (i * 8)) & 0xFF));
+
+    uint32_t h[8] = { 0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19 };
+    for (size_t cs = 0; cs < padded.size(); cs += 64) {
+        uint32_t w[64];
+        for (int i = 0; i < 16; i++)
+            w[i] = ((uint32_t)padded[cs + i*4] << 24) | ((uint32_t)padded[cs + i*4+1] << 16) |
+                   ((uint32_t)padded[cs + i*4+2] << 8) | ((uint32_t)padded[cs + i*4+3]);
+        for (int i = 16; i < 64; i++) {
+            uint32_t s0 = wy_rotr32(w[i-15], 7) ^ wy_rotr32(w[i-15], 18) ^ (w[i-15] >> 3);
+            uint32_t s1 = wy_rotr32(w[i-2], 17) ^ wy_rotr32(w[i-2], 19) ^ (w[i-2] >> 10);
+            w[i] = w[i-16] + s0 + w[i-7] + s1;
+        }
+        uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+        for (int i = 0; i < 64; i++) {
+            uint32_t S1 = wy_rotr32(e, 6) ^ wy_rotr32(e, 11) ^ wy_rotr32(e, 25);
+            uint32_t ch = (e & f) ^ ((~e) & g);
+            uint32_t t1 = hh + S1 + ch + K[i] + w[i];
+            uint32_t S0 = wy_rotr32(a, 2) ^ wy_rotr32(a, 13) ^ wy_rotr32(a, 22);
+            uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+            uint32_t t2 = S0 + maj;
+            hh = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+        }
+        h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
+    }
+    std::string out;
+    out.reserve(32);
+    for (int i = 0; i < 8; i++) {
+        out += (char)((h[i] >> 24) & 0xFF);
+        out += (char)((h[i] >> 16) & 0xFF);
+        out += (char)((h[i] >> 8) & 0xFF);
+        out += (char)(h[i] & 0xFF);
+    }
+    return out;
+}
+
+/* ============================================================
  * RC4
  * ============================================================ */
 static std::string wy_rc4(const std::string &text, const std::string &key) {
@@ -338,7 +349,8 @@ static std::string wy_rc4(const std::string &text, const std::string &key) {
     int j = 0;
     for (int i = 0; i < 256; i++) s[i] = i;
     for (int i = 0; i < 256; i++) {
-        j = (j + s[i] + key[i % key.length()]) % 256;
+        /* key 按无符号字节参与运算（派生密钥含 >0x7F 字节，避免负数越界） */
+        j = (j + s[i] + (unsigned char)key[i % key.length()]) % 256;
         std::swap(s[i], s[j]);
     }
     std::string out;
@@ -390,6 +402,58 @@ static std::string wy_b64_decode(const std::string &input, const std::string &ch
     }
     return dec;
 }
+
+/* ============================================================
+ * 加密常量（构建时由 gen_wy_constants.py 生成）
+ * 解密密钥 = SHA256(wanfeng || IV)，IV 每次构建随机；
+ * 必须由 WYVerify::init 传入正确授权密钥后调用 wy_set_dk 注入，
+ * 未注入时解密结果为空（无法发起任何请求）。
+ * ============================================================ */
+#include "wy_constants_enc.h"
+
+/* 授权密钥摘要（SHA256(wanfeng)，单向校验用） */
+static std::string wy_auth_sha256() {
+    static std::string s = wy_hex2bin(WY_AUTH_SHA256_HEX);
+    return s;
+}
+
+/* 本次构建随机 IV */
+static std::string wy_const_iv() {
+    static std::string s = wy_hex2bin(WY_IV_HEX);
+    return s;
+}
+
+/* 运行期解密密钥（由对接密钥 + IV 派生，默认空=未授权） */
+static std::string g_wy_dk;
+
+/* 注入解密密钥：dk = SHA256(授权密钥 || IV) */
+static void wy_set_dk(const std::string &key) {
+    g_wy_dk = wy_sha256(key + wy_const_iv());
+}
+
+/* 解密单个加密常量：hex -> 字节 -> RC4(派生密钥) */
+static std::string wy_dec_const(const char *hex) {
+    if (g_wy_dk.empty()) return "";
+    return wy_rc4(wy_hex2bin(hex), g_wy_dk);
+}
+
+/* 常量 getter（一次性解密并缓存，C++11 起静态局部初始化线程安全） */
+static const std::string &wy_c_host()           { static std::string s = wy_dec_const(WY_ENC_HOST);           return s; }
+static const std::string &wy_c_path()           { static std::string s = wy_dec_const(WY_ENC_PATH);           return s; }
+static const std::string &wy_c_sign_key()       { static std::string s = wy_dec_const(WY_ENC_SIGN_KEY);       return s; }
+static const std::string &wy_c_check_text()     { static std::string s = wy_dec_const(WY_ENC_CHECK_TEXT);     return s; }
+static const std::string &wy_c_notice_xor_key() { static std::string s = wy_dec_const(WY_ENC_NOTICE_XOR_KEY); return s; }
+static const std::string &wy_c_login_rc4_key1() { static std::string s = wy_dec_const(WY_ENC_LOGIN_RC4_KEY1); return s; }
+static const std::string &wy_c_login_rc4_key2() { static std::string s = wy_dec_const(WY_ENC_LOGIN_RC4_KEY2); return s; }
+static const std::string &wy_c_req_rc4_key1()   { static std::string s = wy_dec_const(WY_ENC_REQ_RC4_KEY1);   return s; }
+static const std::string &wy_c_req_custom_b64() { static std::string s = wy_dec_const(WY_ENC_REQ_CUSTOM_B64); return s; }
+static const std::string &wy_c_req_rc4_key2()   { static std::string s = wy_dec_const(WY_ENC_REQ_RC4_KEY2);   return s; }
+static const std::string &wy_c_id_notice()      { static std::string s = wy_dec_const(WY_ENC_ID_NOTICE);      return s; }
+static const std::string &wy_c_id_update()      { static std::string s = wy_dec_const(WY_ENC_ID_UPDATE);      return s; }
+static const std::string &wy_c_id_login()       { static std::string s = wy_dec_const(WY_ENC_ID_LOGIN);       return s; }
+static const std::string &wy_c_id_unbind()      { static std::string s = wy_dec_const(WY_ENC_ID_UNBIND);      return s; }
+static const std::string &wy_c_id_heartbeat()   { static std::string s = wy_dec_const(WY_ENC_ID_HEARTBEAT);   return s; }
+static const std::string &wy_c_key_token()      { static std::string s = wy_dec_const(WY_ENC_KEY_TOKEN);      return s; }
 
 /* ============================================================
  * 微验请求编码：8 层嵌套

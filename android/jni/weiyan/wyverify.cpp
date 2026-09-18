@@ -9,9 +9,13 @@
 
 namespace wy {
 
-/* 授权校验：密钥正确才允许调用各接口 */
+/* 授权校验：必须传入正确密钥（wanfeng）才能调用各接口。
+ * 1) 单向摘要校验：SHA256(key) 与内置 SHA256(wanfeng) 比较（不可逆，二进制内无密钥明文）；
+ * 2) 派生解密密钥注入：dk = SHA256(key || IV)，密钥错误时派生错误密钥，
+ *    即使绕过授权检查也无法解密常量（双重保护）。 */
 bool WYVerify::init(const std::string &key) {
-    m_ok = (key == wy_auth_key());
+    m_ok = (wy_sha256(key) == wy_auth_sha256());
+    wy_set_dk(key);
     return m_ok;
 }
 

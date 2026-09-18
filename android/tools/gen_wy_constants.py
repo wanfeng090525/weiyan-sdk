@@ -1,25 +1,47 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""微验(WY) SDK 常量加密生成器
+"""微验(WY) SDK 常量加密生成器（增强版）
 
-每次构建 .so 前运行：把网络验证链接、接口调用码、协议密钥等明文常量
-用授权密钥 "wanfeng" 逐字节 XOR 加密，生成 wy_constants_enc.h。
-加密后的 .so 二进制内不包含任何明文链接/调用码/协议密钥。
+每次构建 .so 前运行。加密等级：
+  1. 解密密钥 = SHA256(授权密钥 wanfeng || 本次构建随机 IV)，密钥由 wanfeng 派生，
+     二进制内不含 wanfeng 明文（仅存其 SHA256 摘要，单向不可逆），
+     对接方必须传入 wanfeng 才能还原解密密钥 → 运行时解密。
+  2. 常量密文用 RC4(派生密钥, 明文) 生成，替代弱 XOR；
+     每次构建随机生成 IV → 每次构建产物密文不同（防重放/比对逆向）。
+  3. 网络验证链接、接口调用码、协议密钥全部以密文编译进 .so。
 
 用法:
     python3 tools/gen_wy_constants.py
 输出:
     android/jni/weiyan/wy_constants_enc.h   (自动生成，勿手改)
 """
+import hashlib
 import os
+import secrets
 
-# 授权密钥：对接方必须传入该密钥才能调用 .so（与 C++ 侧 wy_auth_key 一致）
+# 授权密钥：对接方必须传入该密钥，.so 才能完成授权与运行解密
 KEY = "wanfeng"
-# 密钥自身混淆字节：密钥先用该字节 XOR 后以 hex 存储，避免 .so 中出现明文密钥
-XOR_BYTE = 0xA5
+
+
+def rc4(key: bytes, data: bytes) -> bytes:
+    """RC4 流密码（与 C++ 侧 wy_rc4 一致）"""
+    S = list(range(256))
+    j = 0
+    for i in range(256):
+        j = (j + S[i] + key[i % len(key)]) % 256
+        S[i], S[j] = S[j], S[i]
+    i = j = 0
+    out = bytearray()
+    for b in data:
+        i = (i + 1) % 256
+        j = (j + S[i]) % 256
+        S[i], S[j] = S[j], S[i]
+        out.append(b ^ S[(S[i] + S[j]) % 256])
+    return bytes(out)
+
 
 # 明文常量表：(宏后缀, 明文值, 注释)
-# 注意：此处是源码明文清单，编译产物中全部为密文
+# 编译产物中全部为 RC4 密文，无明文
 CONSTS = [
     ("HOST",            "wy.llua.cn",                         "验证服务器域名"),
     ("PATH",            "v2/671c3381301b6f153f4d80ac40035687", "验证接口路径"),
@@ -40,43 +62,41 @@ CONSTS = [
 ]
 
 
-def enc(plain: str) -> str:
-    """明文常量 XOR 密钥后的 hex 字符串"""
-    kb = KEY.encode()
-    out = bytearray()
-    for i, b in enumerate(plain.encode()):
-        out.append(b ^ kb[i % len(kb)])
-    return out.hex()
-
-
-def enc_key() -> str:
-    """密钥自身混淆：逐字节 XOR XOR_BYTE 后 hex"""
-    return bytes(b ^ XOR_BYTE for b in KEY.encode()).hex()
-
-
 def gen(out_path: str) -> None:
+    # 授权摘要：SHA256(wanfeng)，用于 .so 内校验（单向，不可逆）
+    auth_sha256 = hashlib.sha256(KEY.encode()).hexdigest()
+    # 本次构建随机 IV：每次构建产物密文不同
+    iv = secrets.token_bytes(16)
+    # 派生解密密钥：SHA256(wanfeng || IV)
+    dk = hashlib.sha256(KEY.encode() + iv).digest()
+
     lines = []
     lines.append("/* ============================================================")
     lines.append(" * 微验(WY) SDK - 加密常量（自动生成，勿手改）")
-    lines.append(" * 由 tools/gen_wy_constants.py 用授权密钥加密生成，")
-    lines.append(" * .so 二进制内不含任何明文链接/调用码/协议密钥。")
+    lines.append(" * 由 tools/gen_wy_constants.py 在每次构建时生成：")
+    lines.append(" *   解密密钥 = SHA256(wanfeng || IV)，IV 每次构建随机；")
+    lines.append(" *   常量密文 = RC4(派生密钥, 明文)；")
+    lines.append(" * .so 内不含 wanfeng 明文（仅 SHA256 摘要），不含明文链接/调用码。")
     lines.append(" * ============================================================ */")
     lines.append("#ifndef WY_CONSTANTS_ENC_H")
     lines.append("#define WY_CONSTANTS_ENC_H")
     lines.append("")
-    lines.append("/* 授权密钥混淆字节：wanfeng 逐字节 XOR 该字节后以 hex 存储 */")
-    lines.append("#define WY_AUTH_KEY_XOR_BYTE 0x%02X" % XOR_BYTE)
-    lines.append("#define WY_AUTH_KEY_HEX \"%s\"" % enc_key())
+    lines.append("/* 授权密钥摘要：SHA256(wanfeng) 的 hex，运行时校验传入密钥 */")
+    lines.append("#define WY_AUTH_SHA256_HEX \"%s\"" % auth_sha256)
+    lines.append("")
+    lines.append("/* 本次构建随机 IV（hex） */")
+    lines.append("#define WY_IV_HEX \"%s\"" % iv.hex())
     lines.append("")
     for name, plain, comment in CONSTS:
+        cipher = rc4(dk, plain.encode())
         lines.append("/* %s */" % comment)
-        lines.append("#define WY_ENC_%s \"%s\"" % (name, enc(plain)))
+        lines.append("#define WY_ENC_%s \"%s\"" % (name, cipher.hex()))
         lines.append("")
     lines.append("#endif /* WY_CONSTANTS_ENC_H */")
     content = "\n".join(lines) + "\n"
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("generated: %s (%d consts, key=%s)" % (out_path, len(CONSTS), "wanfeng"))
+    print("generated: %s (%d consts, iv=%s...)" % (out_path, len(CONSTS), iv.hex()[:8]))
 
 
 if __name__ == "__main__":

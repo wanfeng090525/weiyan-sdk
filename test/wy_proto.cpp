@@ -14,6 +14,9 @@
 using namespace std;
 
 int main(int argc, char **argv) {
+    /* 本地调试工具：注入授权密钥派生解密密钥（.so 内由 WYVerify::init 完成） */
+    wy_set_dk("wanfeng");
+
     if (argc < 2) {
         cerr << "usage: wy_proto encode|notice|login ..." << endl;
         return 1;
