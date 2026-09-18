@@ -30,29 +30,10 @@
 #include <ctime>
 
 /* ============================================================
- * 微验协议固定常量（由源码中的异或注入密钥解密得出）
+ * 微验协议固定常量（加密存储，见 wy_constants_enc.h）
+ * 每次构建前由 tools/gen_wy_constants.py 用授权密钥 "wanfeng"
+ * 对链接/调用码/协议密钥做 XOR 加密，.so 二进制内无明文。
  * ============================================================ */
-#define WY_HOST              "wy.llua.cn"
-#define WY_PATH              "v2/671c3381301b6f153f4d80ac40035687"
-#define WY_SIGN_KEY          "v71911e38905280a39cde76182a7f3f9"   // sign 尾部拼接密钥
-#define WY_CHECK_TEXT        "v71911e38905280a39cde76182a7f3f9"   // 响应校验文本
-#define WY_NOTICE_XOR_KEY    "o1575eb3e5b1023986c5f5a320b03e8"    // 公告/更新响应 RC4 密钥
-#define WY_LOGIN_RC4_KEY1    "s152f82315f5467e54e94"              // 登录响应第一层 RC4 密钥
-#define WY_LOGIN_RC4_KEY2    "l522705c8a2c827ff761d8773"          // 登录响应第二层 RC4 密钥
-#define WY_REQ_RC4_KEY1      "q77feae6b8446586fb5b7"              // 请求第一层 RC4 密钥
-#define WY_REQ_CUSTOM_B64    "fOrYsXDLKjTzilcw6bn321paIxNBetV95MvohAQq+UZRmu/gCyEH0k874SJFWGdP"
-#define WY_REQ_RC4_KEY2      "c5f939f2cfd9fd7c21aec26b60390"      // 请求第二层 RC4 密钥
-
-/* 公告/更新/登录/解绑/心跳 接口 id（请求参数固定值） */
-#define WY_ID_NOTICE         "ms0mYguHG2G"
-#define WY_ID_UPDATE         "9PcyLozlM4Y"
-#define WY_ID_LOGIN          "4ooszUNauTB"
-#define WY_ID_UNBIND         "4210AA536BA"
-#define WY_ID_HEARTBEAT      "F482D033AE0"
-
-/* 登录响应 msg 中 token 的键名（后台可自定义，默认 "token"；
- * 若取不到会走启发式扫描兜底） */
-#define WY_KEY_TOKEN         "token"
 
 /* ============================================================
  * 基础工具
@@ -84,6 +65,49 @@ static std::string wy_hex2bin(const std::string &hex) {
     }
     return bin;
 }
+
+/* ============================================================
+ * 加密常量（构建时由 gen_wy_constants.py 生成）
+ * 授权密钥 "wanfeng" 以混淆形式存储，运行时机内还原后解密各常量。
+ * ============================================================ */
+#include "wy_constants_enc.h"
+
+/* 还原授权密钥（wanfeng） */
+static std::string wy_auth_key() {
+    static std::string k;
+    if (k.empty()) {
+        std::string bin = wy_hex2bin(WY_AUTH_KEY_HEX);
+        for (size_t i = 0; i < bin.size(); i++) bin[i] ^= (char)WY_AUTH_KEY_XOR_BYTE;
+        k = bin;
+    }
+    return k;
+}
+
+/* 解密单个加密常量：hex -> 字节 -> XOR 授权密钥 */
+static std::string wy_dec_const(const char *hex) {
+    const std::string &key = wy_auth_key();
+    std::string bin = wy_hex2bin(hex);
+    for (size_t i = 0; i < bin.size(); i++) bin[i] ^= key[i % key.size()];
+    return bin;
+}
+
+/* 常量 getter（一次性解密并缓存，C++11 起静态局部初始化线程安全） */
+static const std::string &wy_c_host()           { static std::string s = wy_dec_const(WY_ENC_HOST);           return s; }
+static const std::string &wy_c_path()           { static std::string s = wy_dec_const(WY_ENC_PATH);           return s; }
+static const std::string &wy_c_sign_key()       { static std::string s = wy_dec_const(WY_ENC_SIGN_KEY);       return s; }
+static const std::string &wy_c_check_text()     { static std::string s = wy_dec_const(WY_ENC_CHECK_TEXT);     return s; }
+static const std::string &wy_c_notice_xor_key() { static std::string s = wy_dec_const(WY_ENC_NOTICE_XOR_KEY); return s; }
+static const std::string &wy_c_login_rc4_key1() { static std::string s = wy_dec_const(WY_ENC_LOGIN_RC4_KEY1); return s; }
+static const std::string &wy_c_login_rc4_key2() { static std::string s = wy_dec_const(WY_ENC_LOGIN_RC4_KEY2); return s; }
+static const std::string &wy_c_req_rc4_key1()   { static std::string s = wy_dec_const(WY_ENC_REQ_RC4_KEY1);   return s; }
+static const std::string &wy_c_req_custom_b64() { static std::string s = wy_dec_const(WY_ENC_REQ_CUSTOM_B64); return s; }
+static const std::string &wy_c_req_rc4_key2()   { static std::string s = wy_dec_const(WY_ENC_REQ_RC4_KEY2);   return s; }
+static const std::string &wy_c_id_notice()      { static std::string s = wy_dec_const(WY_ENC_ID_NOTICE);      return s; }
+static const std::string &wy_c_id_update()      { static std::string s = wy_dec_const(WY_ENC_ID_UPDATE);      return s; }
+static const std::string &wy_c_id_login()       { static std::string s = wy_dec_const(WY_ENC_ID_LOGIN);       return s; }
+static const std::string &wy_c_id_unbind()      { static std::string s = wy_dec_const(WY_ENC_ID_UNBIND);      return s; }
+static const std::string &wy_c_id_heartbeat()   { static std::string s = wy_dec_const(WY_ENC_ID_HEARTBEAT);   return s; }
+static const std::string &wy_c_key_token()      { static std::string s = wy_dec_const(WY_ENC_KEY_TOKEN);      return s; }
 
 /* ============================================================
  * MD5
@@ -373,10 +397,10 @@ static std::string wy_b64_decode(const std::string &input, const std::string &ch
  *   -> 6 标准Base64 -> 7 标准Base64 -> 8 hex
  * ============================================================ */
 static std::string wy_encode_request(const std::string &params) {
-    std::string r1 = wy_rc4(params, WY_REQ_RC4_KEY1);
+    std::string r1 = wy_rc4(params, wy_c_req_rc4_key1());
     std::string r2 = wy_bin2hex(r1);
-    std::string r3 = wy_b64_encode(r2, WY_REQ_CUSTOM_B64);
-    std::string r4 = wy_rc4(r3, WY_REQ_RC4_KEY2);
+    std::string r3 = wy_b64_encode(r2, wy_c_req_custom_b64());
+    std::string r4 = wy_rc4(r3, wy_c_req_rc4_key2());
     std::string r5 = wy_bin2hex(r4);
     std::string r6 = wy_b64_encode(r5);
     std::string r7 = wy_b64_encode(r6);
@@ -386,17 +410,17 @@ static std::string wy_encode_request(const std::string &params) {
 
 /* 公告/更新响应解密：hex -> RC4(NOTICE_XOR_KEY) -> JSON */
 static std::string wy_decode_notice_response(const std::string &body) {
-    return wy_rc4(wy_hex2bin(body), WY_NOTICE_XOR_KEY);
+    return wy_rc4(wy_hex2bin(body), wy_c_notice_xor_key());
 }
 
 /* 登录响应解密：hex -> RC4 -> Base64 -> Base64 -> hex -> RC4 -> JSON */
 static std::string wy_decode_login_response(const std::string &body) {
     std::string s1 = wy_hex2bin(body);
-    std::string s2 = wy_rc4(s1, WY_LOGIN_RC4_KEY1);
+    std::string s2 = wy_rc4(s1, wy_c_login_rc4_key1());
     std::string s3 = wy_b64_decode(s2);
     std::string s4 = wy_b64_decode(s3);
     std::string s5 = wy_hex2bin(s4);
-    return wy_rc4(s5, WY_LOGIN_RC4_KEY2);
+    return wy_rc4(s5, wy_c_login_rc4_key2());
 }
 
 /* ============================================================

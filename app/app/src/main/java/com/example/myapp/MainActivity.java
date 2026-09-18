@@ -58,7 +58,6 @@ public class MainActivity extends Activity {
     private String kami = "";
     private String markcode = "";
     private String type = "";
-    private String kmtype = "";
     private String kmtypeName = "";
     private long remain;
     private long endTime;
@@ -76,7 +75,6 @@ public class MainActivity extends Activity {
         kami = sp.getString(LoginActivity.KEY_KAMI, "");
         markcode = sp.getString(LoginActivity.KEY_MARKCODE, "");
         type = sp.getString(LoginActivity.KEY_TYPE, "");
-        kmtype = sp.getString(LoginActivity.KEY_KM_TYPE, "");
         kmtypeName = sp.getString(LoginActivity.KEY_KM_TYPE_NAME, "");
         remain = sp.getLong(LoginActivity.KEY_REMAIN, 0);
         endTime = sp.getLong(LoginActivity.KEY_END_TIME, 0);
@@ -87,8 +85,8 @@ public class MainActivity extends Activity {
             return;
         }
 
-        // 初始化 SDK（凭证在 .so 中）
-        wy = new WYVerify();
+        // 初始化 SDK（凭证密文在 .so 中，需传入授权密钥）
+        wy = new WYVerify(LoginActivity.SDK_KEY);
 
         setContentView(buildContent());
     }
@@ -155,31 +153,9 @@ public class MainActivity extends Activity {
     }
 
     private String cardTypeText() {
-        /* 优先显示 .so 内生成的中文名（永久卡/天卡/...） */
+        /* 卡类型中文名（永久卡/天卡/...）完全由 .so 内映射生成，应用不维护任何映射 */
         if (!TextUtils.isEmpty(kmtypeName)) return kmtypeName;
-        String n = kmtypeNameByKmtype();
-        if (n != null) return n;
-        if ("single".equals(type)) return "次数卡";
-        if ("code".equals(type)) return "单码";
-        if ("timing".equals(type)) return "时长卡";
         return TextUtils.isEmpty(type) ? "—" : type;
-    }
-
-    /* kmtype 标识 → 中文名兜底（.so 未返回时的备用映射） */
-    private String kmtypeNameByKmtype() {
-        if (TextUtils.isEmpty(kmtype)) return null;
-        switch (kmtype) {
-            case "free":    return "免费卡";
-            case "hour":    return "时卡";
-            case "day":     return "天卡";
-            case "week":    return "周卡";
-            case "month":   return "月卡";
-            case "season":  return "季卡";
-            case "year":    return "年卡";
-            case "longuse": return "永久卡";
-            case "single":  return "次数卡";
-            default:        return null;
-        }
     }
 
     private String fmtTime(long sec) {

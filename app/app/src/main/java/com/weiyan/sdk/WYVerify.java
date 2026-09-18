@@ -4,7 +4,7 @@ package com.weiyan.sdk;
  * 微验(WY)验证 SDK - Java 调用入口
  *
  * 用法:
- *   WYVerify v = new WYVerify();
+ *   WYVerify v = new WYVerify("wanfeng");        // 必须传入授权密钥才能调用
  *   WYNoticeResult  notice = v.getNotice();
  *   WYVersionResult ver    = v.checkUpdate("1.0");
  *   WYLoginResult   login  = v.login(kami, markcode);   // markcode 为设备码
@@ -12,7 +12,8 @@ package com.weiyan.sdk;
  *   WYHeartbeatResult hb   = v.heartbeat(kami, markcode, login.token);
  *   v.destroy();
  *
- * 说明: 所有凭证/密钥都编译在 libwyverify.so 内，本类不含任何密钥。
+ * 说明: 网络验证链接/接口调用码/协议密钥均以密文编译在 libwyverify.so 内，
+ * 调用方必须传入授权密钥，密钥错误时所有接口返回失败（msg=密钥错误）。
  */
 public class WYVerify {
 
@@ -22,8 +23,9 @@ public class WYVerify {
 
     private long handle;
 
-    public WYVerify() {
-        handle = nativeCreate();
+    /** @param key 授权密钥（对接密钥），错误时无法调用任何接口 */
+    public WYVerify(String key) {
+        handle = nativeCreate(key);
     }
 
     /** 获取公告 */
@@ -60,7 +62,7 @@ public class WYVerify {
     }
 
     /* ========== JNI ========== */
-    private static native long nativeCreate();
+    private static native long nativeCreate(String key);
     private static native void nativeDestroy(long handle);
     private static native WYNoticeResult nativeGetNotice(long handle);
     private static native WYVersionResult nativeCheckUpdate(long handle, String currentVersion);

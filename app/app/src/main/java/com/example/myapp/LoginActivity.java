@@ -34,6 +34,9 @@ import java.util.concurrent.Executors;
  */
 public class LoginActivity extends Activity {
 
+    /* 对接授权密钥：必须与 .so 内置密钥一致才能调用 SDK（错误时接口返回"密钥错误"） */
+    public static final String SDK_KEY = "wanfeng";
+
     public static final String PREFS_NAME = "wy_prefs";
     public static final String KEY_KAMI = "kami";
     public static final String KEY_MARKCODE = "markcode";
@@ -65,8 +68,8 @@ public class LoginActivity extends Activity {
         btnLogin = findViewById(R.id.btnLogin);
         TextView tvCopy = findViewById(R.id.tvCopyMachine);
 
-        // 初始化 SDK（凭证在 .so 中）
-        wy = new WYVerify();
+        // 初始化 SDK（凭证密文在 .so 中，需传入授权密钥）
+        wy = new WYVerify(SDK_KEY);
 
         // 获取设备码（微验的 markcode）
         executor.execute(() -> {

@@ -77,6 +77,13 @@ class WYVerify {
 public:
     WYVerify() = default;
 
+    /* 授权校验：必须传入正确密钥（wanfeng）才能调用各接口，
+     * 未授权时所有接口返回失败（msg=密钥错误） */
+    bool init(const std::string &key);
+
+    /* 是否已通过密钥授权 */
+    bool authorized() const { return m_ok; }
+
     /* 获取公告 */
     WYNoticeResult getNotice();
 
@@ -96,6 +103,8 @@ public:
 private:
     /* 发送微验请求并返回原始响应体 */
     std::string post(const std::string &id, const std::string &params);
+
+    bool m_ok = false; /* 密钥授权状态 */
 };
 
 } /* namespace wy */

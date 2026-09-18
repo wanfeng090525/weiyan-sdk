@@ -9,11 +9,17 @@
 
 namespace wy {
 
+/* 授权校验：密钥正确才允许调用各接口 */
+bool WYVerify::init(const std::string &key) {
+    m_ok = (key == wy_auth_key());
+    return m_ok;
+}
+
 /* 发送微验请求：params 拼上 id 后整体走 8 层编码 */
 std::string WYVerify::post(const std::string &id, const std::string &params) {
     std::string full = "id=" + id;
     if (!params.empty()) full += "&" + params;
-    return wy_httppost(WY_HOST, WY_PATH, wy_encode_request(full));
+    return wy_httppost(wy_c_host(), wy_c_path(), wy_encode_request(full));
 }
 
 /* JSON 值转字符串：后台部分字段可能返回数字（如 type/onlinenum），
@@ -75,8 +81,8 @@ static const char *wy_kmtype_name(const std::string &kmtype) {
  * 键名后台可自定义，先按配置键名取，失败则跳过 ktype/校验值做启发式扫描 */
 static std::string wy_extract_token(const wy_json &msg) {
     if (!msg.is_object()) return "";
-    if (msg.contains(WY_KEY_TOKEN) && msg[WY_KEY_TOKEN].is_string())
-        return msg[WY_KEY_TOKEN].get<std::string>();
+    if (msg.contains(wy_c_key_token()) && msg[wy_c_key_token()].is_string())
+        return msg[wy_c_key_token()].get<std::string>();
     static const std::string ktype_key = "u1686821dd22b8b848108aa079f8dab50";
     for (auto it = msg.begin(); it != msg.end(); ++it) {
         if (!it.value().is_string()) continue;
@@ -93,7 +99,8 @@ static std::string wy_extract_token(const wy_json &msg) {
 
 WYNoticeResult WYVerify::getNotice() {
     WYNoticeResult r;
-    std::string body = post(WY_ID_NOTICE, "");
+    if (!m_ok) { r.msg = "密钥错误"; return r; }
+    std::string body = post(wy_c_id_notice(), "");
     if (body.empty()) {
         r.msg = "请求失败";
         return r;
@@ -115,7 +122,8 @@ WYNoticeResult WYVerify::getNotice() {
 
 WYVersionResult WYVerify::checkUpdate(const std::string &currentVersion) {
     WYVersionResult r;
-    std::string body = post(WY_ID_UPDATE, "");
+    if (!m_ok) { r.msg = "密钥错误"; return r; }
+    std::string body = post(wy_c_id_update(), "");
     if (body.empty()) {
         r.msg = "请求失败";
         return r;
@@ -144,6 +152,7 @@ WYVersionResult WYVerify::checkUpdate(const std::string &currentVersion) {
 
 WYLoginResult WYVerify::login(const std::string &kami, const std::string &markcode) {
     WYLoginResult r;
+    if (!m_ok) { r.msg = "密钥错误"; return r; }
 
     /* 时间戳 + 随机数 */
     auto now = std::chrono::system_clock::now();
@@ -157,12 +166,12 @@ WYLoginResult WYVerify::login(const std::string &kami, const std::string &markco
     std::string value = std::to_string(dist(gen));
 
     /* sign = md5("kami=...&markcode=...&t=...&" + SIGN_KEY) */
-    std::string sign = wy_md5("kami=" + kami + "&markcode=" + markcode + "&t=" + t + "&" + WY_SIGN_KEY);
+    std::string sign = wy_md5("kami=" + kami + "&markcode=" + markcode + "&t=" + t + "&" + wy_c_sign_key());
 
     /* 组装参数并发送 */
     std::string params = "kami=" + kami + "&markcode=" + markcode + "&t=" + t +
                          "&sign=" + sign + "&value=" + value;
-    std::string body = post(WY_ID_LOGIN, params);
+    std::string body = post(wy_c_id_login(), params);
     if (body.empty()) {
         r.msg = "请求失败";
         return r;
@@ -192,9 +201,9 @@ WYLoginResult WYVerify::login(const std::string &kami, const std::string &markco
         std::string v2 = data.value("wfe71da0479bd", "");
         std::string v3 = data.value("ybceae94482323a", "");
 
-        std::string calc1 = wy_md5(wy_sha1(WY_CHECK_TEXT + std::to_string(code) + std::to_string(id)));
+        std::string calc1 = wy_md5(wy_sha1(wy_c_check_text() + std::to_string(code) + std::to_string(id)));
         std::string calc2 = wy_md5(wy_sha1(t + std::to_string(id)));
-        std::string calc3 = wy_sha1(wy_sha1(sign + sign + WY_CHECK_TEXT + std::to_string(code)));
+        std::string calc3 = wy_sha1(wy_sha1(sign + sign + wy_c_check_text() + std::to_string(code)));
 
         if (v1 != calc1 || v2 != calc2 || v3 != calc3) {
             r.msg = "服务器校验失败";
@@ -226,6 +235,7 @@ WYLoginResult WYVerify::login(const std::string &kami, const std::string &markco
 
 WYUnbindResult WYVerify::unbind(const std::string &kami, const std::string &markcode) {
     WYUnbindResult r;
+    if (!m_ok) { r.msg = "密钥错误"; return r; }
 
     auto now = std::chrono::system_clock::now();
     long timestamp = std::chrono::duration_cast<std::chrono::seconds>(
@@ -238,11 +248,11 @@ WYUnbindResult WYVerify::unbind(const std::string &kami, const std::string &mark
     std::string value = std::to_string(dist(gen));
 
     /* 与登录同签名公式 */
-    std::string sign = wy_md5("kami=" + kami + "&markcode=" + markcode + "&t=" + t + "&" + WY_SIGN_KEY);
+    std::string sign = wy_md5("kami=" + kami + "&markcode=" + markcode + "&t=" + t + "&" + wy_c_sign_key());
 
     std::string params = "kami=" + kami + "&markcode=" + markcode + "&t=" + t +
                          "&sign=" + sign + "&value=" + value;
-    std::string body = post(WY_ID_UNBIND, params);
+    std::string body = post(wy_c_id_unbind(), params);
     if (body.empty()) {
         r.msg = "请求失败";
         return r;
@@ -276,6 +286,7 @@ WYUnbindResult WYVerify::unbind(const std::string &kami, const std::string &mark
 WYHeartbeatResult WYVerify::heartbeat(const std::string &kami, const std::string &markcode,
                                       const std::string &kamitoken) {
     WYHeartbeatResult r;
+    if (!m_ok) { r.msg = "密钥错误"; return r; }
 
     auto now = std::chrono::system_clock::now();
     long timestamp = std::chrono::duration_cast<std::chrono::seconds>(
@@ -289,11 +300,11 @@ WYHeartbeatResult WYVerify::heartbeat(const std::string &kami, const std::string
 
     /* 心跳签名需带上 kamitoken */
     std::string sign = wy_md5("kami=" + kami + "&markcode=" + markcode + "&t=" + t +
-                              "&kamitoken=" + kamitoken + "&" + WY_SIGN_KEY);
+                              "&kamitoken=" + kamitoken + "&" + wy_c_sign_key());
 
     std::string params = "kami=" + kami + "&markcode=" + markcode + "&t=" + t +
                          "&sign=" + sign + "&kamitoken=" + kamitoken + "&value=" + value;
-    std::string body = post(WY_ID_HEARTBEAT, params);
+    std::string body = post(wy_c_id_heartbeat(), params);
     if (body.empty()) {
         r.msg = "请求失败";
         return r;
