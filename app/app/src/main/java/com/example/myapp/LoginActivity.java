@@ -39,6 +39,7 @@ public class LoginActivity extends Activity {
     public static final String KEY_MARKCODE = "markcode";
     public static final String KEY_TYPE = "type";
     public static final String KEY_KM_TYPE = "kmtype";
+    public static final String KEY_KM_TYPE_NAME = "kmtype_name";
     public static final String KEY_REMAIN = "remain";
     public static final String KEY_END_TIME = "end_time";
     public static final String KEY_TOKEN = "token";
@@ -140,6 +141,7 @@ public class LoginActivity extends Activity {
                 .remove(KEY_KAMI)
                 .remove(KEY_TYPE)
                 .remove(KEY_KM_TYPE)
+                .remove(KEY_KM_TYPE_NAME)
                 .remove(KEY_REMAIN)
                 .remove(KEY_END_TIME)
                 .remove(KEY_TOKEN)
@@ -224,6 +226,7 @@ public class LoginActivity extends Activity {
                 .putString(KEY_MARKCODE, markcode)
                 .putString(KEY_TYPE, r.type)
                 .putString(KEY_KM_TYPE, r.kmtype == null ? "" : r.kmtype)
+                .putString(KEY_KM_TYPE_NAME, r.kmtypeName == null ? "" : r.kmtypeName)
                 .putLong(KEY_REMAIN, r.remain)
                 .putLong(KEY_END_TIME, r.endTime)
                 .putString(KEY_TOKEN, r.token == null ? "" : r.token)

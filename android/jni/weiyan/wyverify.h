@@ -45,6 +45,7 @@ struct WYLoginResult {
     std::string msg;          /* 失败消息 */
     std::string type;         /* ktype：code=单码 / single=次数卡 */
     std::string kmtype;       /* kmtype：free/hour/day/week/month/season/year/longuse/single */
+    std::string kmtypeName;   /* kmtype 中文名（永久卡/天卡/...），由 so 内映射生成 */
     long code = 0;            /* 服务器 code（11242 成功） */
     long remain = 0;          /* single 类型：剩余可登录次数 */
     long endTime = 0;         /* timing 类型：到期时间戳 */
@@ -65,6 +66,7 @@ struct WYHeartbeatResult {
     long endTime = 0;         /* msg.endtime 到期时间 */
     std::string type;         /* msg.type 卡密类型 */
     std::string timetype;     /* msg.timetype 时长类型 */
+    std::string timetypeName; /* timetype 中文名（永久卡/天卡/...），由 so 内映射生成 */
     std::string onlinenum;    /* msg.onlinenum 在线人数 */
     std::string check;        /* msg.check 校验值 */
 };

@@ -26,21 +26,48 @@ static std::string wy_json_to_str(const wy_json &v) {
     return "";
 }
 
-/* 从登录响应 msg 中提取卡密时长类型(kmtype)：
- * 键名后台可自定义，按官方文档《卡密时长类型》的标识集合做启发式扫描 */
-static std::string wy_extract_kmtype(const wy_json &msg, const std::string &ktype_key) {
-    if (!msg.is_object()) return "";
+/* 是否为文档定义的卡密时长类型标识 */
+static bool wy_is_kmtype(const std::string &v) {
     static const char *kKmTypes[] = {
         "free", "hour", "day", "week", "month", "season", "year", "longuse", "single"
     };
-    for (auto it = msg.begin(); it != msg.end(); ++it) {
-        if (!it.value().is_string()) continue;
-        std::string v = it.value().get<std::string>();
-        if (it.key() == ktype_key) continue;   /* 跳过卡密类型 ktype */
-        for (const char *k : kKmTypes) {
-            if (v == k) return v;
+    for (const char *k : kKmTypes)
+        if (v == k) return true;
+    return false;
+}
+
+/* 递归扫描 msg（兼容键名自定义/嵌套结构），提取卡密时长类型 kmtype */
+static void wy_scan_kmtype(const wy_json &node, const std::string &skip_key, std::string &out) {
+    if (!out.empty()) return;
+    if (node.is_object()) {
+        for (auto it = node.begin(); it != node.end(); ++it) {
+            if (!out.empty()) return;
+            const wy_json &v = it.value();
+            if (it.key() != skip_key && v.is_string()) {
+                std::string s = v.get<std::string>();
+                if (wy_is_kmtype(s)) { out = s; return; }
+            }
+            wy_scan_kmtype(v, skip_key, out);
+        }
+    } else if (node.is_array()) {
+        for (const auto &v : node) {
+            if (!out.empty()) return;
+            wy_scan_kmtype(v, skip_key, out);
         }
     }
+}
+
+/* kmtype 标识 → 中文显示名（官方文档《卡密时长类型》，映射集成在 so 内） */
+static const char *wy_kmtype_name(const std::string &kmtype) {
+    if (kmtype == "free")    return "免费卡";
+    if (kmtype == "hour")    return "时卡";
+    if (kmtype == "day")     return "天卡";
+    if (kmtype == "week")    return "周卡";
+    if (kmtype == "month")   return "月卡";
+    if (kmtype == "season")  return "季卡";
+    if (kmtype == "year")    return "年卡";
+    if (kmtype == "longuse") return "永久卡";
+    if (kmtype == "single")  return "次数卡";
     return "";
 }
 
@@ -175,7 +202,12 @@ WYLoginResult WYVerify::login(const std::string &kami, const std::string &markco
         }
 
         r.type = data.value("u1686821dd22b8b848108aa079f8dab50", "");
-        r.kmtype = wy_extract_kmtype(data, "u1686821dd22b8b848108aa079f8dab50");
+        {
+            std::string km = "";
+            wy_scan_kmtype(data, "u1686821dd22b8b848108aa079f8dab50", km);
+            r.kmtype = km;
+            r.kmtypeName = wy_kmtype_name(km);
+        }
         if (r.type == "single") {
             r.remain = data.value("c27f13333b755643373328a41fc2c2be1", (long)0);
         } else {
@@ -280,6 +312,7 @@ WYHeartbeatResult WYVerify::heartbeat(const std::string &kami, const std::string
                 /* 后台可能以数字返回这些字段，用兼容助手读取 */
                 if (m.contains("type"))      r.type      = wy_json_to_str(m["type"]);
                 if (m.contains("timetype"))  r.timetype  = wy_json_to_str(m["timetype"]);
+                r.timetypeName = wy_kmtype_name(r.timetype);
                 if (m.contains("onlinenum")) r.onlinenum = wy_json_to_str(m["onlinenum"]);
                 if (m.contains("check"))     r.check     = wy_json_to_str(m["check"]);
             }

@@ -117,6 +117,7 @@ Java_com_weiyan_sdk_WYVerify_nativeLogin(
     set_str (env, obj, R_LOGIN, "msg", r.msg);
     set_str (env, obj, R_LOGIN, "type", r.type);
     set_str (env, obj, R_LOGIN, "kmtype", r.kmtype);
+    set_str (env, obj, R_LOGIN, "kmtypeName", r.kmtypeName);
     set_long(env, obj, R_LOGIN, "code", r.code);
     set_long(env, obj, R_LOGIN, "remain", r.remain);
     set_long(env, obj, R_LOGIN, "endTime", r.endTime);
@@ -155,6 +156,7 @@ Java_com_weiyan_sdk_WYVerify_nativeHeartbeat(
     set_long(env, obj, R_HEARTBEAT, "endTime", r.endTime);
     set_str (env, obj, R_HEARTBEAT, "type", r.type);
     set_str (env, obj, R_HEARTBEAT, "timetype", r.timetype);
+    set_str (env, obj, R_HEARTBEAT, "timetypeName", r.timetypeName);
     set_str (env, obj, R_HEARTBEAT, "onlinenum", r.onlinenum);
     set_str (env, obj, R_HEARTBEAT, "check", r.check);
     return obj;

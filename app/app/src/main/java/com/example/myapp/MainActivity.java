@@ -59,12 +59,14 @@ public class MainActivity extends Activity {
     private String markcode = "";
     private String type = "";
     private String kmtype = "";
+    private String kmtypeName = "";
     private long remain;
     private long endTime;
     private String token = "";
     private String appVer = "1.0";
     private boolean destroyed = false;
     private TextView hbStatusView;
+    private TextView typeView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +77,7 @@ public class MainActivity extends Activity {
         markcode = sp.getString(LoginActivity.KEY_MARKCODE, "");
         type = sp.getString(LoginActivity.KEY_TYPE, "");
         kmtype = sp.getString(LoginActivity.KEY_KM_TYPE, "");
+        kmtypeName = sp.getString(LoginActivity.KEY_KM_TYPE_NAME, "");
         remain = sp.getLong(LoginActivity.KEY_REMAIN, 0);
         endTime = sp.getLong(LoginActivity.KEY_END_TIME, 0);
         token = sp.getString(LoginActivity.KEY_TOKEN, "");
@@ -111,7 +114,7 @@ public class MainActivity extends Activity {
         LinearLayout accountGroup = group();
         addInfoCell(accountGroup, "卡密", kami);
         addInfoCell(accountGroup, "设备码", markcode);
-        addInfoCell(accountGroup, "卡类型", cardTypeText());
+        typeView = addInfoCell(accountGroup, "卡类型", cardTypeText());
         if ("single".equals(type)) {
             addInfoCell(accountGroup, "剩余次数", String.valueOf(remain));
         } else {
@@ -151,8 +154,19 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
-    /* 卡密时长类型(kmtype) → 中文名，参照官方文档《卡密时长类型》 */
-    private String kmtypeName() {
+    private String cardTypeText() {
+        /* 优先显示 .so 内生成的中文名（永久卡/天卡/...） */
+        if (!TextUtils.isEmpty(kmtypeName)) return kmtypeName;
+        String n = kmtypeNameByKmtype();
+        if (n != null) return n;
+        if ("single".equals(type)) return "次数卡";
+        if ("code".equals(type)) return "单码";
+        if ("timing".equals(type)) return "时长卡";
+        return TextUtils.isEmpty(type) ? "—" : type;
+    }
+
+    /* kmtype 标识 → 中文名兜底（.so 未返回时的备用映射） */
+    private String kmtypeNameByKmtype() {
         if (TextUtils.isEmpty(kmtype)) return null;
         switch (kmtype) {
             case "free":    return "免费卡";
@@ -412,6 +426,11 @@ public class MainActivity extends Activity {
                     sb.append(r.endTime > 0 ? fmtTime(r.endTime) : "无到期时间");
                     if (!TextUtils.isEmpty(r.onlinenum)) sb.append(" · 在线").append(r.onlinenum).append("人");
                     updateHbStatus(sb.toString());
+                    /* 登录响应可能不含 kmtype，心跳返回的 timetype 是权威来源，
+                     * 用 .so 生成的 timetypeName 刷新卡类型显示（永久卡/天卡/...） */
+                    if (typeView != null && !TextUtils.isEmpty(r.timetypeName)) {
+                        typeView.setText(r.timetypeName);
+                    }
                 } else if (r != null && r.code == CODE_DATA_EXPIRED) {
                     /* Token 默认 120 秒过期，过期后需重新登录获取新令牌 */
                     updateHbStatus("令牌过期，请退出重新登录");

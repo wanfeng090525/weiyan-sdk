@@ -10,6 +10,8 @@ public class WYHeartbeatResult extends WYResult {
     public String type = "";
     /** msg.timetype 卡密时长类型 */
     public String timetype = "";
+    /** msg.timetype 中文显示名（永久卡/天卡/...），由 .so 内映射生成 */
+    public String timetypeName = "";
     /** msg.onlinenum 在线人数 */
     public String onlinenum = "";
     /** msg.check 数据校验值 */
