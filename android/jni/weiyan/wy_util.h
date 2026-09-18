@@ -629,6 +629,8 @@ static std::string wy_read_chunk(int sockfd) {
     hexbuf[len] = '\0';
     int chunk_size = wy_hextoint(hexbuf);
     if (chunk_size == 0) return "";
+    /* 防异常响应：chunk 过大（含负溢出）直接放弃，避免 bad_alloc 崩溃 */
+    if (chunk_size < 0 || chunk_size > 8 * 1024 * 1024) return "";
     std::vector<char> chunk(chunk_size);
     if (wy_read_fully(sockfd, chunk.data(), chunk_size) != chunk_size) return "";
     char crlf[2];
@@ -637,32 +639,34 @@ static std::string wy_read_chunk(int sockfd) {
 }
 
 static std::string wy_read_response(int sockfd) {
-    std::vector<char> resp(1024);
-    char *ptr = resp.data();
-    char *max_ptr = resp.data() + 1023;
-    int readlen;
-    while ((readlen = (int)read(sockfd, ptr, 1)) > 0) {
-        if (*ptr == '\n' && ptr >= resp.data() + 3 &&
-            strncmp(ptr - 3, "\r\n\r", 3) == 0) {
-            *(++ptr) = '\0';
+    /* 读取 HTTP 头：逐字节累积到 string，遇 "\r\n\r\n" 结束（无固定缓冲、无越界） */
+    std::string header;
+    char c;
+    while (read(sockfd, &c, 1) == 1) {
+        header.push_back(c);
+        size_t n = header.size();
+        if (n >= 4 && header[n - 1] == '\n' && header[n - 2] == '\r' &&
+            header[n - 3] == '\n' && header[n - 4] == '\r') {
             break;
         }
-        ptr++;
-        if (ptr == max_ptr) return "";
+        if (n >= 8192) return "";   /* 头部过长保护 */
     }
-    if (readlen == 0) return "";
-    std::string header(resp.data(), ptr - resp.data());
+    if (header.empty()) return "";
     std::string cl = wy_strstrstr(header, "Content-Length: ", "\n");
     if (!cl.empty()) {
         int content_length = atoi(cl.c_str());
+        /* 防异常响应：Content-Length 非法或过大直接放弃 */
+        if (content_length < 0 || content_length > 8 * 1024 * 1024) return "";
         std::vector<char> body(content_length);
-        if (read(sockfd, body.data(), content_length) != content_length) return "";
+        if (content_length > 0 &&
+            read(sockfd, body.data(), content_length) != content_length) return "";
         return std::string(body.begin(), body.end());
     }
     std::string body;
     while (true) {
         std::string chunk = wy_read_chunk(sockfd);
         if (chunk.empty()) break;
+        if (body.size() + chunk.size() > 8 * 1024 * 1024) return "";  /* 总量保护 */
         body += chunk;
     }
     return body;
